@@ -1,0 +1,15 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+public static class ThemeColors
+{
+    public static Color Background = Color.FromArgb(255, 250, 240); // слоновая кость
+    public static Color Header = Color.FromArgb(255, 235, 221);    // бледно-розовый
+    public static Color Card = Color.White;
+    public static Color CardHover = Color.FromArgb(255, 245, 235); // нежно-розовый
+    public static Color Text = Color.FromArgb(80, 50, 50);         // тёмно-коричневый
+    public static Color Accent = Color.FromArgb(255, 200, 200);    // светло-розовый
+}
