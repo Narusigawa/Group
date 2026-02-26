@@ -53,7 +53,7 @@ namespace cond
             // --- 2. Заголовок по центру ---
             lblTitle = new Label
             {
-                Text = "SweetHeart",
+                Text = "SweetHeartSONYA",
                 Font = new Font("Kristen ITC", 30, FontStyle.Bold),
                 ForeColor = ThemeColors.Text,
                 TextAlign = ContentAlignment.MiddleCenter,
