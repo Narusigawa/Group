@@ -93,8 +93,13 @@ namespace cond
         {
             if (!isAuthenticated)
             {
+                // Создаём и показываем форму авторизации
                 using (AuthForm auth = new AuthForm())
                 {
+                    // Позиционируем окно под иконкой профиля
+                    Point screenPoint = headerControl.PointToScreen(new Point(headerControl.Width - 120, headerControl.Height));
+                    auth.Location = new Point(screenPoint.X - auth.Width + 40, screenPoint.Y + 5);
+
                     if (auth.ShowDialog() == DialogResult.OK)
                     {
                         isAuthenticated = true;
@@ -106,7 +111,7 @@ namespace cond
             {
                 ShowPage(new ProfilePage());
             }
-            menuControl.Visible = false; // если меню было открыто
+            menuControl.Visible = false;
         }
 
         private void OpenCart(object sender, EventArgs e)
