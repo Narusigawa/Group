@@ -1,0 +1,197 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace cond
+{
+    public partial class OrderHistoryPage : UserControl
+    {
+        private User _currentUser;
+        private FlowLayoutPanel flowPanel;
+
+        public OrderHistoryPage(User currentUser)
+        {
+            _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+            InitializeComponent();
+            SetupUI();
+            LoadOrders();
+        }
+
+        private void SetupUI()
+        {
+            this.Dock = DockStyle.Fill;
+            this.BackColor = ThemeColors.Background;
+            this.AutoScroll = true;
+            this.Padding = new Padding(0, 120, 0, 0);
+
+            var container = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(20),
+                BackColor = Color.Transparent
+            };
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+            container.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            // Заголовок
+            var lblTitle = new Label
+            {
+                Text = "История заказов",
+                Font = new Font("HONOR Sans", 28, FontStyle.Bold),
+                ForeColor = ThemeColors.Text,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Dock = DockStyle.Fill
+            };
+            container.Controls.Add(lblTitle, 0, 0);
+
+            // Панель с прокруткой для заказов
+            var scrollPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = Color.Transparent
+            };
+            flowPanel = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                BackColor = Color.Transparent
+            };
+            scrollPanel.Controls.Add(flowPanel);
+            container.Controls.Add(scrollPanel, 0, 1);
+
+            this.Controls.Add(container);
+        }
+
+        private void LoadOrders()
+        {
+            var orders = DatabaseHelper.GetUserOrders(_currentUser.Id);
+            flowPanel.Controls.Clear();
+
+            if (orders.Count == 0)
+            {
+                var lblEmpty = new Label
+                {
+                    Text = "У вас пока нет заказов",
+                    Font = new Font("HONOR Sans", 18),
+                    ForeColor = Color.Gray,
+                    AutoSize = true,
+                    Margin = new Padding(10)
+                };
+                flowPanel.Controls.Add(lblEmpty);
+                return;
+            }
+
+            foreach (var order in orders)
+            {
+                var panel = CreateOrderPanel(order);
+                flowPanel.Controls.Add(panel);
+            }
+        }
+
+        private Control CreateOrderPanel(Order order)
+        {
+            var panel = new Panel
+            {
+                Width = flowPanel.Width - 40,
+                Height = 80,
+                BackColor = Color.White,
+                Margin = new Padding(10),
+                Cursor = Cursors.Hand
+            };
+            panel.Paint += (s, e) =>
+            {
+                ControlPaint.DrawBorder(e.Graphics, panel.ClientRectangle,
+                    Color.LightGray, 1, ButtonBorderStyle.Solid,
+                    Color.LightGray, 1, ButtonBorderStyle.Solid,
+                    Color.LightGray, 1, ButtonBorderStyle.Solid,
+                    Color.LightGray, 1, ButtonBorderStyle.Solid);
+            };
+            panel.Click += (s, e) => ShowOrderDetails(order.Id);
+
+            // Номер заказа
+            var lblId = new Label
+            {
+                Text = $"Заказ №{order.Id}",
+                Font = new Font("HONOR Sans", 12, FontStyle.Bold),
+                Location = new Point(10, 10),
+                AutoSize = true
+            };
+            panel.Controls.Add(lblId);
+
+            // Дата
+            var lblDate = new Label
+            {
+                Text = order.OrderDate.ToString("dd.MM.yyyy HH:mm"),
+                Font = new Font("HONOR Sans", 10),
+                ForeColor = Color.Gray,
+                Location = new Point(10, 35),
+                AutoSize = true
+            };
+            panel.Controls.Add(lblDate);
+
+            // Сумма
+            var lblTotal = new Label
+            {
+                Text = $"{order.TotalAmount:F2} ₽",
+                Font = new Font("HONOR Sans", 12, FontStyle.Bold),
+                ForeColor = ThemeColors.Accent,
+                Location = new Point(panel.Width - 120, 20),
+                AutoSize = true
+            };
+            panel.Controls.Add(lblTotal);
+
+            // Статус
+            var lblStatus = new Label
+            {
+                Text = order.Status,
+                Font = new Font("HONOR Sans", 10),
+                ForeColor = GetStatusColor(order.Status),
+                Location = new Point(panel.Width - 120, 45),
+                AutoSize = true
+            };
+            panel.Controls.Add(lblStatus);
+
+            panel.Resize += (s, e) =>
+            {
+                lblTotal.Location = new Point(panel.Width - 120, 20);
+                lblStatus.Location = new Point(panel.Width - 120, 45);
+            };
+
+            return panel;
+        }
+
+        private Color GetStatusColor(string status)
+        {
+            switch (status.ToLower())
+            {
+                case "новый": return Color.Blue;
+                case "оплачен": return Color.Green;
+                case "готов": return Color.Orange;
+                case "выдан": return Color.Gray;
+                default: return Color.Black;
+            }
+        }
+
+        private void ShowOrderDetails(int orderId)
+        {
+            var parent = this.Parent as Panel;
+            if (parent != null)
+            {
+                var detailsPage = new OrderDetailsPage(orderId);
+                detailsPage.BackRequested += (s, e) =>
+                {
+                    parent.Controls.Clear();
+                    parent.Controls.Add(new OrderHistoryPage(_currentUser));
+                };
+                parent.Controls.Clear();
+                parent.Controls.Add(detailsPage);
+            }
+        }
+    }
+}

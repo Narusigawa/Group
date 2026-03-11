@@ -1,0 +1,101 @@
+﻿-- Создание таблицы категорий
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- Таблица пользователей (клиентов)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(50) NOT NULL,          -- для учебного проекта храним открыто
+    last_name VARCHAR(50) NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    middle_name VARCHAR(50),                 -- отчество (может быть пустым)
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT,
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица товаров (со ссылкой на категорию)
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    image_filename VARCHAR(100),               -- имя файла картинки (cake1.jpg)
+    is_available BOOLEAN DEFAULT true
+);
+
+-- Корзина (привязывается к пользователю)
+CREATE TABLE cart_items (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id)
+);
+
+-- Заказы
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_amount NUMERIC(10,2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'новый',        -- новый, оплачен, готов, выдан
+    delivery_address TEXT,
+    comment TEXT
+);
+
+-- Состав заказа
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    price_at_time NUMERIC(10,2) NOT NULL        -- цена из products на момент заказа
+);
+
+
+
+
+
+
+
+
+-- Категории
+INSERT INTO categories (name, description) VALUES
+('Торты', 'Большие праздничные торты'),
+('Пирожные', 'Небольшие десерты на один раз'),
+('Капкейки', 'Маленькие кексы с кремом'),
+('Макаронс', 'Французское печенье'),
+('Десерты', 'Разные сладкие блюда'),
+('Пончики', 'Жареные во фритюре с начинкой');
+
+
+
+
+
+-- Товары (12 штук)
+INSERT INTO products (name, description, price, category_id, image_filename) VALUES
+('Торт «Красный бархат»', 'Нежные коржи с какао, прослойка из сливочного сыра', 850.00, 1, 'red_velvet.jpg'),
+('Торт «Наполеон»', 'Слоёный торт с заварным кремом', 720.00, 1, 'napoleon.jpg'),
+('Торт «Медовик»', 'Медовые коржи со сметанным кремом', 690.00, 1, 'medovik.jpg'),
+('Пирожное «Картошка»', 'Классическое пирожное из бисквитной крошки', 95.00, 2, 'potato.jpg'),
+('Пирожное «Корзиночка»', 'Песочная корзиночка с белковым кремом и ягодой', 110.00, 2, 'basket.jpg'),
+('Эклер с ванилью', 'Заварное пирожное с ванильным кремом', 85.00, 2, 'eclair.jpg'),
+('Макаронс «Малина-фисташка»', 'Французское печенье с ганашем', 150.00, 4, 'macaron.jpg'),
+('Капкейк «Вишня в шоколаде»', 'Шоколадный кекс с вишнёвой начинкой и крем-чиз', 180.00, 3, 'cupcake_cherry.jpg'),
+('Капкейк «Карамельный»', 'Ванильный кекс с солёной карамелью', 170.00, 3, 'cupcake_caramel.jpg'),
+('Чизкейк «Нью-Йорк»', 'Плотный сливочный чизкейк на песочной основе', 320.00, 5, 'cheesecake.jpg'),
+('Тирамису', 'Итальянский десерт с маскарпоне и кофе', 290.00, 5, 'tiramisu.jpg'),
+('Пончик с глазурью', 'Воздушный пончик с разноцветной глазурью', 65.00, 6, 'donut.jpg');
+
+
+
+INSERT INTO users (login, password, last_name, first_name, middle_name, email, phone, address) VALUES
+('ivanov', '123', 'Иванов', 'Иван', 'Иванович', 'ivan@example.com', '+79001234567', 'ул. Ленина, д. 1, кв. 2');

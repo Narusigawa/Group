@@ -1,49 +1,46 @@
-﻿namespace cond
+﻿using System.Drawing;
+using System.Windows.Forms;
+
+namespace cond
 {
     partial class MainForm
     {
-        /// <summary>
-        /// Обязательная переменная конструктора.
-        /// </summary>
-        private System.ComponentModel.IContainer components = null;
-
-        /// <summary>
-        /// Освободить все используемые ресурсы.
-        /// </summary>
-        /// <param name="disposing">истинно, если управляемый ресурс должен быть удален; иначе ложно.</param>
-        protected override void Dispose(bool disposing)
+        private void SetupMainForm()
         {
-            if (disposing && (components != null))
+            this.Text = "Кондитерская Sweet Delights";
+            this.WindowState = FormWindowState.Maximized;
+            this.MinimumSize = new Size(900, 650);
+            this.BackColor = ThemeColors.Background;
+
+            headerControl = new HeaderControl();
+            headerControl.MenuClick += ToggleMenu;
+            headerControl.ProfileClick += OpenProfile;
+            headerControl.CartClick += OpenCart;
+            this.Controls.Add(headerControl);
+
+            menuControl = new MenuControl();
+            menuControl.NavigationRequested += Navigate;
+            this.Controls.Add(menuControl);
+            menuControl.BringToFront();
+
+            pnlContent = new Panel
             {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = ThemeColors.Background
+            };
+            this.Controls.Add(pnlContent);
+
+            catalogControl = new CatalogControl();
+            catalogControl.AddToCartClicked += OnAddToCart;
+            catalogControl.ProductClicked += OnProductClicked;
+            catalogControl.LoadProducts();
+            ShowPage(catalogControl);
         }
 
-        #region Код, автоматически созданный конструктором форм Windows
-
-        /// <summary>
-        /// Требуемый метод для поддержки конструктора — не изменяйте 
-        /// содержимое этого метода с помощью редактора кода.
-        /// </summary>
         private void InitializeComponent()
         {
-            this.SuspendLayout();
-            // 
-            // Form1
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1511, 940);
-            this.MinimumSize = new System.Drawing.Size(900, 650);
-            this.Name = "Form1";
-            this.Text = "Form1";
-            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
-            this.ResumeLayout(false);
-
+            SetupMainForm();
         }
-
-        #endregion
     }
 }
-

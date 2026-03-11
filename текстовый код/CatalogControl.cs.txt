@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Windows.Forms;
 
 namespace cond
@@ -10,69 +9,67 @@ namespace cond
     {
         private Panel scrollPanel;
         private TableLayoutPanel tablePanel;
-        private ComboBox cmbSort;
-        private List<Product> allProducts;
 
+        // Событие добавления товара в корзину
         public event EventHandler<Product> AddToCartClicked;
+        // Событие клика по карточке (для открытия подробной информации)
         public event EventHandler<Product> ProductClicked;
 
         public CatalogControl()
         {
             InitializeComponent();
+            SetupCatalog();
         }
 
-        private void ApplySort()
+        private void SetupCatalog()
         {
-            if (allProducts == null || allProducts.Count == 0)
-                return;
+            this.Dock = DockStyle.Fill;
+            this.BackColor = ThemeColors.Background;
 
-            List<Product> sortedProducts;
-
-            switch (cmbSort.SelectedIndex)
+            scrollPanel = new Panel
             {
-                case 1:
-                    sortedProducts = allProducts.OrderBy(p => p.Price).ToList();
-                    break;
-                case 2:
-                    sortedProducts = allProducts.OrderByDescending(p => p.Price).ToList();
-                    break;
-                default:
-                    sortedProducts = allProducts.OrderBy(p => p.Name).ToList();
-                    break;
-            }
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = ThemeColors.Background,
+                Padding = new Padding(0, 150, 0, 0)
+            };
 
-            RefreshCatalog(sortedProducts);
-        }
-
-        private void RefreshCatalog(List<Product> products)
-        {
-            tablePanel.Controls.Clear();
-            tablePanel.RowCount = 0;
-            tablePanel.RowStyles.Clear();
-
-            foreach (var product in products)
+            tablePanel = new TableLayoutPanel
             {
-                var card = new ProductCard();
-                card.SetProduct(product);
-                AddProduct(card);
-            }
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 3,
+                Dock = DockStyle.Top,
+                BackColor = ThemeColors.Background,
+                Margin = new Padding(0)
+            };
+
+            for (int i = 0; i < 3; i++)
+                tablePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33333F));
+
+            scrollPanel.Controls.Add(tablePanel);
+            this.Controls.Add(scrollPanel);
+
+            tablePanel.Resize += (s, e) => AdjustRowHeights();
+            this.Resize += (s, e) => AdjustRowHeights();
         }
 
         public void AddProduct(ProductCard card)
         {
+            // Подписываемся на события карточки и пересылаем наружу
             card.AddToCartClicked += (s, product) => AddToCartClicked?.Invoke(this, product);
             card.ProductClicked += (s, product) => ProductClicked?.Invoke(this, product);
 
             card.Dock = DockStyle.Fill;
-            card.Margin = new Padding(15);
+            card.Margin = new Padding(10);
 
             int rowCount = tablePanel.RowCount;
-            int colCount = tablePanel.ColumnCount;
+            int colCount = tablePanel.ColumnCount; // всегда 3
 
             if (rowCount == 0)
             {
                 tablePanel.RowCount = 1;
-                tablePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 280));
+                tablePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 250));
                 rowCount = 1;
             }
 
@@ -90,7 +87,7 @@ namespace cond
             if (!added)
             {
                 tablePanel.RowCount++;
-                tablePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 280));
+                tablePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 250));
                 tablePanel.Controls.Add(card, 0, rowCount);
             }
 
@@ -105,7 +102,7 @@ namespace cond
             if (colWidths.Length == 0) return;
             int colWidth = colWidths[0];
 
-            int desiredHeight = (int)(colWidth * 0.95);
+            int desiredHeight = (int)(colWidth * 0.9);
 
             for (int i = 0; i < tablePanel.RowStyles.Count; i++)
             {
@@ -122,49 +119,17 @@ namespace cond
             tablePanel.Controls.Clear();
             tablePanel.RowCount = 0;
             tablePanel.RowStyles.Clear();
-            allProducts = null;
         }
 
         public void LoadProducts()
         {
             Clear();
-            allProducts = DatabaseHelper.GetProducts();
-
-            var defaultSort = allProducts.OrderBy(p => p.Name).ToList();
-
-            foreach (var product in defaultSort)
+            List<Product> products = DatabaseHelper.GetProducts();
+            foreach (var product in products)
             {
                 var card = new ProductCard();
                 card.SetProduct(product);
                 AddProduct(card);
-            }
-        }
-
-        public void LoadProductsByCategory(int categoryId)
-        {
-            Clear();
-            allProducts = DatabaseHelper.GetProductsByCategory(categoryId);
-            ApplySort();
-        }
-
-        public void ResetSort()
-        {
-            cmbSort.SelectedIndex = 0;
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            if (cmbSort != null && cmbSort.Parent != null)
-            {
-                foreach (Control control in cmbSort.Parent.Controls)
-                {
-                    if (control is Label label && label.Text.Contains("Сортировать"))
-                    {
-                        cmbSort.Location = new Point(label.Right + 15, 20);
-                        break;
-                    }
-                }
             }
         }
     }
