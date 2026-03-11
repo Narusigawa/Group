@@ -1,37 +1,58 @@
-﻿namespace cond
+﻿using System.Drawing;
+using System.Windows.Forms;
+
+namespace cond
 {
     partial class MenuControl
     {
-        /// <summary> 
-        /// Обязательная переменная конструктора.
-        /// </summary>
-        private System.ComponentModel.IContainer components = null;
-
-        /// <summary> 
-        /// Освободить все используемые ресурсы.
-        /// </summary>
-        /// <param name="disposing">истинно, если управляемый ресурс должен быть удален; иначе ложно.</param>
-        protected override void Dispose(bool disposing)
+        private void SetupMenu()
         {
-            if (disposing && (components != null))
+            this.Dock = DockStyle.Left;
+            this.Width = 280;
+            this.BackColor = Color.FromArgb(255, 245, 240);
+            this.Visible = false;
+
+            FlowLayoutPanel flow = new FlowLayoutPanel
             {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                Padding = new Padding(0, 20, 20, 20),
+                BackColor = Color.Transparent
+            };
+
+            flow.Controls.Add(CreateMenuButton("📋 Каталог", "catalog"));
+            flow.Controls.Add(CreateMenuButton("👤 Личный кабинет", "profile"));
+            flow.Controls.Add(CreateMenuButton("ℹ️ О нас", "about"));
+            flow.Controls.Add(CreateMenuButton("📞 Контакты", "contacts"));
+
+            this.Controls.Add(flow);
         }
 
-        #region Код, автоматически созданный конструктором компонентов
+        private Button CreateMenuButton(string text, string key)
+        {
+            Button btn = new Button
+            {
+                Text = text,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Height = 80,
+                Width = this.Width - 40,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeColors.Text,
+                Font = new Font("HONOR Sans", 16, FontStyle.Bold),
+                Padding = new Padding(0, 0, 0, 0),
+                AutoSize = false,
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Click += (s, e) => NavigationRequested?.Invoke(this, key);
+            return btn;
+        }
 
-        /// <summary> 
-        /// Требуемый метод для поддержки конструктора — не изменяйте 
-        /// содержимое этого метода с помощью редактора кода.
-        /// </summary>
         private void InitializeComponent()
         {
-            components = new System.ComponentModel.Container();
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            SetupMenu();
         }
-
-        #endregion
     }
 }

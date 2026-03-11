@@ -1,11 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace cond
@@ -15,68 +8,52 @@ namespace cond
         private TextBox txtLogin;
         private TextBox txtPassword;
         private Button btnLogin;
+        private Label lblRegisterLink;
+
+        public User CurrentUser { get; private set; }
 
         public AuthForm()
         {
             InitializeComponent();
-            SetupForm();
+            this.StartPosition = FormStartPosition.CenterParent;
         }
 
-        private void SetupForm()
+        private void BtnLogin_Click(object sender, EventArgs e)
         {
-            this.Text = "Вход";
-            this.Size = new Size(300, 200);
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.BackColor = ThemeColors.Background;
+            string login = txtLogin.Text.Trim();
+            string password = txtPassword.Text;
 
-            TableLayoutPanel table = new TableLayoutPanel
+            if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
             {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 3,
-                Padding = new Padding(20)
-            };
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
+                MessageBox.Show("Введите логин и пароль", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            // Логин
-            table.Controls.Add(new Label { Text = "Логин:", TextAlign = ContentAlignment.MiddleRight, Dock = DockStyle.Fill }, 0, 0);
-            txtLogin = new TextBox { Dock = DockStyle.Fill };
-            table.Controls.Add(txtLogin, 1, 0);
-
-            // Пароль
-            table.Controls.Add(new Label { Text = "Пароль:", TextAlign = ContentAlignment.MiddleRight, Dock = DockStyle.Fill }, 0, 1);
-            txtPassword = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
-            table.Controls.Add(txtPassword, 1, 1);
-
-            // Кнопка
-            btnLogin = new Button
+            User user = DatabaseHelper.Login(login, password);
+            if (user != null)
             {
-                Text = "Войти",
-                Dock = DockStyle.Fill,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeColors.Accent,
-                ForeColor = ThemeColors.Text,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold)
-            };
-            btnLogin.Click += (s, e) =>
+                CurrentUser = user;
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            else
             {
-                // Пока проверка: если поля не пустые, считаем успехом
-                if (!string.IsNullOrWhiteSpace(txtLogin.Text) && !string.IsNullOrWhiteSpace(txtPassword.Text))
-                    this.DialogResult = DialogResult.OK;
-                else
-                    MessageBox.Show("Введите логин и пароль", "Ошибка");
-            };
-            table.Controls.Add(btnLogin, 0, 2);
-            table.SetColumnSpan(btnLogin, 2);
+                MessageBox.Show("Неверный логин или пароль", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
-            this.Controls.Add(table);
+        private void LblRegister_Click(object sender, EventArgs e)
+        {
+            this.Hide();
+            using (RegisterForm registerForm = new RegisterForm())
+            {
+                registerForm.StartPosition = FormStartPosition.CenterParent;
+                registerForm.ShowDialog(this);
+            }
+            this.Show();
+            this.BringToFront();
         }
     }
 }

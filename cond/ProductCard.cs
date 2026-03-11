@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 using System.Windows.Forms;
 
 namespace cond
@@ -14,68 +9,63 @@ namespace cond
     {
         private PictureBox pbImage;
         private Label lblName;
+        private Label lblPrice;
+        private Button btnAddToCart;
+        private Product _product;
+
+        public event EventHandler<Product> AddToCartClicked;
+        public event EventHandler<Product> ProductClicked;
 
         public ProductCard()
         {
-            InitializeComponent(); // оставляем, он нужен
-            SetupControl();
+            InitializeComponent();
         }
 
-        private void SetupControl()
+        public void SetProduct(Product product)
         {
-            this.BackColor = ThemeColors.Card;
-
-            pbImage = new PictureBox
-            {
-                Dock = DockStyle.Fill,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Transparent
-            };
-
-            lblName = new Label
-            {
-                AutoSize = false,
-                Dock = DockStyle.Top,
-                Height = 40,
-                BackColor = Color.FromArgb(180, 255, 255, 255),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = ThemeColors.Text
-            };
-
-            this.Controls.Add(pbImage);
-            this.Controls.Add(lblName);
-
-            this.Paint += (s, e) =>
-            {
-                ControlPaint.DrawBorder(e.Graphics, this.ClientRectangle,
-                    Color.LightGray, 1, ButtonBorderStyle.Solid,
-                    Color.LightGray, 1, ButtonBorderStyle.Solid,
-                    Color.LightGray, 1, ButtonBorderStyle.Solid,
-                    Color.LightGray, 1, ButtonBorderStyle.Solid);
-            };
+            _product = product;
+            lblName.Text = product.Name;
+            lblPrice.Text = $"{product.Price:F2} ₽";
+            pbImage.Image = LoadImage(product.ImageFilename);
         }
 
-        // Метод для заполнения данными
-        public void SetProduct(string name, Image image)
+        private Image LoadImage(string filename)
         {
-            lblName.Text = name;
-            pbImage.Image = image ?? CreateDefaultImage(); // если картинки нет – заглушка
+            if (string.IsNullOrEmpty(filename))
+                return CreateDefaultImage();
+
+            string path = Path.Combine(Application.StartupPath, "Images", filename);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+                        return Image.FromStream(fs);
+                }
+                catch
+                {
+                    return CreateDefaultImage();
+                }
+            }
+            return CreateDefaultImage();
         }
 
-        // Заглушка, если не передали картинку
         private Image CreateDefaultImage()
         {
-            Bitmap bmp = new Bitmap(100, 100);
+            Bitmap bmp = new Bitmap(150, 150);
             using (Graphics g = Graphics.FromImage(bmp))
             {
-                g.Clear(Color.LightPink);
-                g.DrawString("🍰", new Font("Segoe UI", 30), Brushes.White, 25, 25);
+                g.Clear(Color.FromArgb(240, 240, 240));
+
+                using (var font = new Font("HONOR Sans", 40))
+                using (var brush = new SolidBrush(Color.FromArgb(200, ThemeColors.Accent)))
+                {
+                    g.DrawString("🍰", font, brush, 35, 35);
+                }
             }
             return bmp;
         }
 
-        // --- Анимация при наведении ---
         protected override void OnMouseEnter(EventArgs e)
         {
             base.OnMouseEnter(e);
@@ -91,4 +81,3 @@ namespace cond
         }
     }
 }
-

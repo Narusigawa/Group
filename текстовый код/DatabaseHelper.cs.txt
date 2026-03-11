@@ -1,0 +1,891 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using Npgsql;
+using System.Windows.Forms;
+using System.Linq;
+
+namespace cond
+{
+    // Вспомогательные классы-модели (можно вынести в отдельные файлы)
+    public class User
+    {
+        public int Id { get; set; }
+        public string Login { get; set; }
+        public string Password { get; set; }
+        public string LastName { get; set; }
+        public string FirstName { get; set; }
+        public string MiddleName { get; set; }
+        public string Email { get; set; }
+        public string Phone { get; set; }
+        public string Address { get; set; }
+        public DateTime RegistrationDate { get; set; }
+    }
+
+    public class Category
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+    }
+
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public decimal Price { get; set; }
+        public int? CategoryId { get; set; }
+        public string CategoryName { get; set; }
+        public string ImageFilename { get; set; }
+        public bool IsAvailable { get; set; }
+    }
+
+    public class CartItem
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public int ProductId { get; set; }
+        public Product Product { get; set; } // детальная информация о товаре
+        public int Quantity { get; set; }
+        public DateTime AddedDate { get; set; }
+    }
+
+    public class Order
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public DateTime OrderDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public string Status { get; set; }
+        public string DeliveryAddress { get; set; }
+        public string Comment { get; set; }
+        public List<OrderItem> Items { get; set; }
+    }
+
+    public class OrderItem
+    {
+        public int Id { get; set; }
+        public int OrderId { get; set; }
+        public int? ProductId { get; set; }
+        public string ProductName { get; set; } // для удобства
+        public int Quantity { get; set; }
+        public decimal PriceAtTime { get; set; }
+    }
+
+    public static class DatabaseHelper
+    {
+        // Строка подключения (измените под свою БД)
+        private static readonly string ConnectionString =
+            "Host=localhost;Port=5432;Database=confectionery;Username=postgres;Password=1234;";
+
+        // ========== АВТОРИЗАЦИЯ И ПОЛЬЗОВАТЕЛИ ==========
+
+        /// <summary>
+        /// Проверяет логин и пароль. Возвращает объект User, если успешно, иначе null.
+        /// </summary>
+        public static User Login(string login, string password)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"SELECT id, login, password, last_name, first_name, middle_name, 
+                                            email, phone, address, registration_date
+                                     FROM users 
+                                     WHERE login = @login AND password = @password";
+
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@login", login);
+                        cmd.Parameters.AddWithValue("@password", password);
+
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return new User
+                                {
+                                    Id = reader.GetInt32(0),
+                                    Login = reader.GetString(1),
+                                    Password = reader.GetString(2),
+                                    LastName = reader.GetString(3),
+                                    FirstName = reader.GetString(4),
+                                    MiddleName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                    Email = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                    Phone = reader.IsDBNull(7) ? null : reader.GetString(7),
+                                    Address = reader.IsDBNull(8) ? null : reader.GetString(8),
+                                    RegistrationDate = reader.GetDateTime(9)
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка подключения к БД: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Проверяет, существует ли пользователь с таким логином или email.
+        /// </summary>
+        public static bool IsUserExists(string login, string email)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "SELECT COUNT(*) FROM users WHERE login = @login OR email = @email";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@login", login);
+                        cmd.Parameters.AddWithValue("@email", email);
+                        int count = Convert.ToInt32(cmd.ExecuteScalar());
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка подключения к БД: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Регистрирует нового пользователя. Возвращает true при успехе.
+        /// </summary>
+        public static bool RegisterUser(string login, string password, string lastName, string firstName,
+                                        string middleName, string email, string phone, string address)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        INSERT INTO users (login, password, last_name, first_name, middle_name, email, phone, address)
+                        VALUES (@login, @password, @lastName, @firstName, @middleName, @email, @phone, @address)";
+
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@login", login);
+                        cmd.Parameters.AddWithValue("@password", password);
+                        cmd.Parameters.AddWithValue("@lastName", lastName);
+                        cmd.Parameters.AddWithValue("@firstName", firstName);
+                        cmd.Parameters.AddWithValue("@middleName", string.IsNullOrWhiteSpace(middleName) ? (object)DBNull.Value : middleName);
+                        cmd.Parameters.AddWithValue("@email", email);
+                        cmd.Parameters.AddWithValue("@phone", string.IsNullOrWhiteSpace(phone) ? (object)DBNull.Value : phone);
+                        cmd.Parameters.AddWithValue("@address", string.IsNullOrWhiteSpace(address) ? (object)DBNull.Value : address);
+
+                        int rows = cmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при регистрации: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Получает данные пользователя по логину.
+        /// </summary>
+        public static User GetUserByLogin(string login)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"SELECT id, login, password, last_name, first_name, middle_name, 
+                                            email, phone, address, registration_date
+                                     FROM users WHERE login = @login";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@login", login);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return new User
+                                {
+                                    Id = reader.GetInt32(0),
+                                    Login = reader.GetString(1),
+                                    Password = reader.GetString(2),
+                                    LastName = reader.GetString(3),
+                                    FirstName = reader.GetString(4),
+                                    MiddleName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                    Email = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                    Phone = reader.IsDBNull(7) ? null : reader.GetString(7),
+                                    Address = reader.IsDBNull(8) ? null : reader.GetString(8),
+                                    RegistrationDate = reader.GetDateTime(9)
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при получении пользователя: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Обновляет данные пользователя (без пароля).
+        /// </summary>
+        public static bool UpdateUserData(int userId, string lastName, string firstName, string middleName,
+                                          string email, string phone, string address)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        UPDATE users 
+                        SET last_name = @lastName, first_name = @firstName, middle_name = @middleName,
+                            email = @email, phone = @phone, address = @address
+                        WHERE id = @userId";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.Parameters.AddWithValue("@lastName", lastName);
+                        cmd.Parameters.AddWithValue("@firstName", firstName);
+                        cmd.Parameters.AddWithValue("@middleName", string.IsNullOrWhiteSpace(middleName) ? (object)DBNull.Value : middleName);
+                        cmd.Parameters.AddWithValue("@email", email);
+                        cmd.Parameters.AddWithValue("@phone", string.IsNullOrWhiteSpace(phone) ? (object)DBNull.Value : phone);
+                        cmd.Parameters.AddWithValue("@address", string.IsNullOrWhiteSpace(address) ? (object)DBNull.Value : address);
+
+                        int rows = cmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при обновлении данных: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        // ========== КАТЕГОРИИ ==========
+
+        /// <summary>
+        /// Возвращает список всех категорий.
+        /// </summary>
+        public static List<Category> GetCategories()
+        {
+            var categories = new List<Category>();
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "SELECT id, name, description FROM categories ORDER BY name";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            categories.Add(new Category
+                            {
+                                Id = reader.GetInt32(0),
+                                Name = reader.GetString(1),
+                                Description = reader.IsDBNull(2) ? null : reader.GetString(2)
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке категорий: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return categories;
+        }
+
+        // ========== ТОВАРЫ ==========
+
+        /// <summary>
+        /// Возвращает список всех доступных товаров с названием категории.
+        /// </summary>
+        public static List<Product> GetProducts()
+        {
+            var products = new List<Product>();
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        SELECT p.id, p.name, p.description, p.price, p.category_id, 
+                               c.name as category_name, p.image_filename, p.is_available
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.is_available = true
+                        ORDER BY p.name";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            products.Add(new Product
+                            {
+                                Id = reader.GetInt32(0),
+                                Name = reader.GetString(1),
+                                Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                                Price = reader.GetDecimal(3),
+                                CategoryId = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
+                                CategoryName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                ImageFilename = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                IsAvailable = reader.GetBoolean(7)
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке товаров: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return products;
+        }
+
+        /// <summary>
+        /// Возвращает товар по его ID.
+        /// </summary>
+        public static Product GetProductById(int productId)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        SELECT p.id, p.name, p.description, p.price, p.category_id, 
+                               c.name as category_name, p.image_filename, p.is_available
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.id = @id";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", productId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return new Product
+                                {
+                                    Id = reader.GetInt32(0),
+                                    Name = reader.GetString(1),
+                                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                                    Price = reader.GetDecimal(3),
+                                    CategoryId = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
+                                    CategoryName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                    ImageFilename = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                    IsAvailable = reader.GetBoolean(7)
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке товара: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Возвращает товары по категории.
+        /// </summary>
+        public static List<Product> GetProductsByCategory(int categoryId)
+        {
+            var products = new List<Product>();
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        SELECT p.id, p.name, p.description, p.price, p.category_id, 
+                               c.name as category_name, p.image_filename, p.is_available
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.is_available = true AND p.category_id = @categoryId
+                        ORDER BY p.name";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@categoryId", categoryId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                products.Add(new Product
+                                {
+                                    Id = reader.GetInt32(0),
+                                    Name = reader.GetString(1),
+                                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                                    Price = reader.GetDecimal(3),
+                                    CategoryId = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
+                                    CategoryName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                    ImageFilename = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                    IsAvailable = reader.GetBoolean(7)
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке товаров по категории: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return products;
+        }
+
+        // ========== КОРЗИНА ==========
+
+        /// <summary>
+        /// Возвращает корзину пользователя с полной информацией о товарах.
+        /// </summary>
+        public static List<CartItem> GetCart(int userId)
+        {
+            var cart = new List<CartItem>();
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        SELECT ci.id, ci.user_id, ci.product_id, ci.quantity, ci.added_date,
+                               p.id, p.name, p.description, p.price, p.category_id, 
+                               c.name as category_name, p.image_filename, p.is_available
+                        FROM cart_items ci
+                        INNER JOIN products p ON ci.product_id = p.id
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE ci.user_id = @userId
+                        ORDER BY ci.added_date";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var product = new Product
+                                {
+                                    Id = reader.GetInt32(5),
+                                    Name = reader.GetString(6),
+                                    Description = reader.IsDBNull(7) ? null : reader.GetString(7),
+                                    Price = reader.GetDecimal(8),
+                                    CategoryId = reader.IsDBNull(9) ? (int?)null : reader.GetInt32(9),
+                                    CategoryName = reader.IsDBNull(10) ? null : reader.GetString(10),
+                                    ImageFilename = reader.IsDBNull(11) ? null : reader.GetString(11),
+                                    IsAvailable = reader.GetBoolean(12)
+                                };
+                                cart.Add(new CartItem
+                                {
+                                    Id = reader.GetInt32(0),
+                                    UserId = reader.GetInt32(1),
+                                    ProductId = reader.GetInt32(2),
+                                    Quantity = reader.GetInt32(3),
+                                    AddedDate = reader.GetDateTime(4),
+                                    Product = product
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке корзины: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return cart;
+        }
+
+        /// <summary>
+        /// Добавляет товар в корзину. Если товар уже есть, увеличивает количество.
+        /// </summary>
+        public static bool AddToCart(int userId, int productId, int quantity = 1)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+
+                    // Проверяем, есть ли уже такой товар в корзине
+                    string checkQuery = "SELECT id, quantity FROM cart_items WHERE user_id = @userId AND product_id = @productId";
+                    using (var checkCmd = new NpgsqlCommand(checkQuery, conn))
+                    {
+                        checkCmd.Parameters.AddWithValue("@userId", userId);
+                        checkCmd.Parameters.AddWithValue("@productId", productId);
+                        using (var reader = checkCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                // Если есть, обновляем количество
+                                int cartItemId = reader.GetInt32(0);
+                                int currentQty = reader.GetInt32(1);
+                                reader.Close();
+
+                                string updateQuery = "UPDATE cart_items SET quantity = @quantity WHERE id = @id";
+                                using (var updateCmd = new NpgsqlCommand(updateQuery, conn))
+                                {
+                                    updateCmd.Parameters.AddWithValue("@quantity", currentQty + quantity);
+                                    updateCmd.Parameters.AddWithValue("@id", cartItemId);
+                                    updateCmd.ExecuteNonQuery();
+                                }
+                                return true;
+                            }
+                        }
+                    }
+
+                    // Если нет, вставляем новую запись
+                    string insertQuery = "INSERT INTO cart_items (user_id, product_id, quantity) VALUES (@userId, @productId, @quantity)";
+                    using (var insertCmd = new NpgsqlCommand(insertQuery, conn))
+                    {
+                        insertCmd.Parameters.AddWithValue("@userId", userId);
+                        insertCmd.Parameters.AddWithValue("@productId", productId);
+                        insertCmd.Parameters.AddWithValue("@quantity", quantity);
+                        insertCmd.ExecuteNonQuery();
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при добавлении в корзину: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Обновляет количество товара в корзине.
+        /// </summary>
+        public static bool UpdateCartItemQuantity(int userId, int productId, int newQuantity)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "UPDATE cart_items SET quantity = @quantity WHERE user_id = @userId AND product_id = @productId";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@quantity", newQuantity);
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.Parameters.AddWithValue("@productId", productId);
+                        int rows = cmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при обновлении корзины: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Удаляет товар из корзины.
+        /// </summary>
+        public static bool RemoveFromCart(int userId, int productId)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "DELETE FROM cart_items WHERE user_id = @userId AND product_id = @productId";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.Parameters.AddWithValue("@productId", productId);
+                        int rows = cmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при удалении из корзины: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Очищает всю корзину пользователя.
+        /// </summary>
+        public static bool ClearCart(int userId)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "DELETE FROM cart_items WHERE user_id = @userId";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.ExecuteNonQuery();
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при очистке корзины: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        // ========== ЗАКАЗЫ ==========
+
+        /// <summary>
+        /// Создаёт заказ на основе корзины пользователя. Возвращает ID созданного заказа или -1 при ошибке.
+        /// </summary>
+        public static int CreateOrder(int userId, string deliveryAddress, string comment)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+
+                    // Получаем корзину с ценами
+                    var cart = GetCart(userId);
+                    if (cart.Count == 0)
+                    {
+                        MessageBox.Show("Корзина пуста", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return -1;
+                    }
+
+                    decimal total = cart.Sum(item => item.Product.Price * item.Quantity);
+
+                    // Вставляем заказ
+                    string insertOrderQuery = @"
+                        INSERT INTO orders (user_id, total_amount, delivery_address, comment, status)
+                        VALUES (@userId, @total, @address, @comment, 'новый')
+                        RETURNING id";
+
+                    int orderId;
+                    using (var cmd = new NpgsqlCommand(insertOrderQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.Parameters.AddWithValue("@total", total);
+                        cmd.Parameters.AddWithValue("@address", deliveryAddress ?? "");
+                        cmd.Parameters.AddWithValue("@comment", comment ?? "");
+                        orderId = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+
+                    // Вставляем позиции заказа
+                    foreach (var item in cart)
+                    {
+                        string insertItemQuery = @"
+                            INSERT INTO order_items (order_id, product_id, quantity, price_at_time)
+                            VALUES (@orderId, @productId, @quantity, @price)";
+                        using (var cmd = new NpgsqlCommand(insertItemQuery, conn))
+                        {
+                            cmd.Parameters.AddWithValue("@orderId", orderId);
+                            cmd.Parameters.AddWithValue("@productId", item.ProductId);
+                            cmd.Parameters.AddWithValue("@quantity", item.Quantity);
+                            cmd.Parameters.AddWithValue("@price", item.Product.Price);
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Очищаем корзину
+                    ClearCart(userId);
+
+                    return orderId;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при создании заказа: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return -1;
+            }
+        }
+
+        /// <summary>
+        /// Возвращает список заказов пользователя (без деталей).
+        /// </summary>
+        public static List<Order> GetUserOrders(int userId)
+        {
+            var orders = new List<Order>();
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = @"
+                        SELECT id, order_date, total_amount, status, delivery_address, comment
+                        FROM orders
+                        WHERE user_id = @userId
+                        ORDER BY order_date DESC";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                orders.Add(new Order
+                                {
+                                    Id = reader.GetInt32(0),
+                                    UserId = userId,
+                                    OrderDate = reader.GetDateTime(1),
+                                    TotalAmount = reader.GetDecimal(2),
+                                    Status = reader.GetString(3),
+                                    DeliveryAddress = reader.IsDBNull(4) ? null : reader.GetString(4),
+                                    Comment = reader.IsDBNull(5) ? null : reader.GetString(5)
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке заказов: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return orders;
+        }
+
+        /// <summary>
+        /// Возвращает полную информацию о заказе (с позициями).
+        /// </summary>
+        public static Order GetOrderDetails(int orderId)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+
+                    // Получаем заголовок заказа
+                    string orderQuery = @"
+                        SELECT id, user_id, order_date, total_amount, status, delivery_address, comment
+                        FROM orders WHERE id = @orderId";
+                    Order order = null;
+                    using (var cmd = new NpgsqlCommand(orderQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@orderId", orderId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                order = new Order
+                                {
+                                    Id = reader.GetInt32(0),
+                                    UserId = reader.GetInt32(1),
+                                    OrderDate = reader.GetDateTime(2),
+                                    TotalAmount = reader.GetDecimal(3),
+                                    Status = reader.GetString(4),
+                                    DeliveryAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                    Comment = reader.IsDBNull(6) ? null : reader.GetString(6),
+                                    Items = new List<OrderItem>()
+                                };
+                            }
+                        }
+                    }
+
+                    if (order == null) return null;
+
+                    // Получаем позиции
+                    string itemsQuery = @"
+                        SELECT oi.id, oi.product_id, oi.quantity, oi.price_at_time, p.name
+                        FROM order_items oi
+                        LEFT JOIN products p ON oi.product_id = p.id
+                        WHERE oi.order_id = @orderId";
+                    using (var cmd = new NpgsqlCommand(itemsQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@orderId", orderId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                order.Items.Add(new OrderItem
+                                {
+                                    Id = reader.GetInt32(0),
+                                    OrderId = orderId,
+                                    ProductId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1),
+                                    Quantity = reader.GetInt32(2),
+                                    PriceAtTime = reader.GetDecimal(3),
+                                    ProductName = reader.IsDBNull(4) ? "Товар удалён" : reader.GetString(4)
+                                });
+                            }
+                        }
+                    }
+
+                    return order;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке деталей заказа: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Обновляет статус заказа (например, для администратора).
+        /// </summary>
+        public static bool UpdateOrderStatus(int orderId, string newStatus)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    string query = "UPDATE orders SET status = @status WHERE id = @orderId";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@status", newStatus);
+                        cmd.Parameters.AddWithValue("@orderId", orderId);
+                        int rows = cmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при обновлении статуса: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+    }
+}

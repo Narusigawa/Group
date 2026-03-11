@@ -1,156 +1,190 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace cond
 {
     public partial class ProfilePage : UserControl
     {
+        private User _currentUser;
+        private Label lblTitle;
+        private Label lblLogin;
+        private TextBox txtLastName, txtFirstName, txtMiddleName, txtEmail, txtPhone, txtAddress;
+        private Button btnEdit, btnCancelEdit, btnChangeAddress, btnCancelAddress;
+        private bool _isEditMode = false, _isAddressEditMode = false;
+        private string _originalLastName, _originalFirstName, _originalMiddleName,
+                       _originalEmail, _originalPhone, _originalAddress;
+        public event EventHandler LogoutRequested;
+
         public ProfilePage()
         {
             InitializeComponent();
-            SetupProfilePage();
         }
 
-        private void SetupProfilePage()
+        public void LoadUser(User user)
         {
-            this.Dock = DockStyle.Fill;
-            this.BackColor = ThemeColors.Background;
-            this.AutoScroll = true;
+            _currentUser = user ?? throw new ArgumentNullException(nameof(user));
+            lblLogin.Text = user.Login ?? "";
+            txtLastName.Text = user.LastName ?? "";
+            txtFirstName.Text = user.FirstName ?? "";
+            txtMiddleName.Text = user.MiddleName ?? "";
+            txtEmail.Text = user.Email ?? "";
+            txtPhone.Text = user.Phone ?? "";
+            txtAddress.Text = user.Address ?? "";
 
-            // Основной контейнер
-            Panel container = new Panel
-            {
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                MaximumSize = new Size(800, 0),
-                MinimumSize = new Size(300, 0),
-                BackColor = Color.White,
-                Padding = new Padding(30)
-            };
+            _originalLastName = txtLastName.Text;
+            _originalFirstName = txtFirstName.Text;
+            _originalMiddleName = txtMiddleName.Text;
+            _originalEmail = txtEmail.Text;
+            _originalPhone = txtPhone.Text;
+            _originalAddress = txtAddress.Text;
 
-            // Центрируем контейнер
-            container.Location = new Point((this.ClientSize.Width - container.Width) / 2, 30);
-            this.Resize += (s, e) =>
-            {
-                container.Location = new Point(Math.Max(10, (this.ClientSize.Width - container.Width) / 2), 30);
-            };
-
-            // Аватар
-            Label lblAvatar = new Label
-            {
-                Text = "👤",
-                Font = new Font("Segoe UI", 60),
-                ForeColor = ThemeColors.Accent,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Top,
-                Height = 100
-            };
-
-            // Имя пользователя
-            Label lblName = new Label
-            {
-                Text = "Имя пользователя",
-                Font = new Font("Segoe UI", 20, FontStyle.Bold),
-                ForeColor = ThemeColors.Text,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Top,
-                Height = 40
-            };
-
-            // Email
-            Label lblEmail = new Label
-            {
-                Text = "email@example.com",
-                Font = new Font("Segoe UI", 12),
-                ForeColor = Color.Gray,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Top,
-                Height = 30
-            };
-
-            // Статистика
-            FlowLayoutPanel statsPanel = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                Height = 100,
-                WrapContents = false,
-                FlowDirection = FlowDirection.LeftToRight,
-                Padding = new Padding(0, 20, 0, 20)
-            };
-
-            statsPanel.Controls.Add(CreateStatCard("5", "Заказов"));
-            statsPanel.Controls.Add(CreateStatCard("1200", "Бонусов"));
-            statsPanel.Controls.Add(CreateStatCard("3", "Любимых"));
-
-            // Кнопка выхода
-            Button btnLogout = new Button
-            {
-                Text = "Выйти из аккаунта",
-                Dock = DockStyle.Top,
-                Height = 45,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(255, 200, 200),
-                ForeColor = ThemeColors.Text,
-                Font = new Font("Segoe UI", 12),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 20, 0, 0)
-            };
-            btnLogout.FlatAppearance.BorderSize = 0;
-            btnLogout.Click += (s, e) =>
-            {
-                // Здесь будет выход из аккаунта
-                MessageBox.Show("Вы вышли из аккаунта", "Инфо");
-            };
-
-            // Собираем
-            container.Controls.Add(btnLogout);
-            container.Controls.Add(statsPanel);
-            container.Controls.Add(lblEmail);
-            container.Controls.Add(lblName);
-            container.Controls.Add(lblAvatar);
-
-            this.Controls.Add(container);
+            SetEditMode(false);
+            SetAddressEditMode(false);
         }
 
-        private Panel CreateStatCard(string value, string label)
+        private void SetEditMode(bool enable)
         {
-            Panel card = new Panel
+            _isEditMode = enable;
+            txtLastName.ReadOnly = !enable;
+            txtFirstName.ReadOnly = !enable;
+            txtMiddleName.ReadOnly = !enable;
+            txtEmail.ReadOnly = !enable;
+            txtPhone.ReadOnly = !enable;
+
+            if (enable)
             {
-                Size = new Size(100, 80),
-                Margin = new Padding(10),
-                BackColor = ThemeColors.Background
-            };
-
-            Label lblValue = new Label
+                btnEdit.Text = "Сохранить";
+                btnCancelEdit.Visible = true;
+            }
+            else
             {
-                Text = value,
-                Font = new Font("Segoe UI", 20, FontStyle.Bold),
-                ForeColor = ThemeColors.Accent,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Top,
-                Height = 40
-            };
+                btnEdit.Text = "Редактировать";
+                btnCancelEdit.Visible = false;
+            }
+        }
 
-            Label lblLabel = new Label
+        private void SetAddressEditMode(bool enable)
+        {
+            _isAddressEditMode = enable;
+            txtAddress.ReadOnly = !enable;
+
+            if (enable)
             {
-                Text = label,
-                Font = new Font("Segoe UI", 10),
-                ForeColor = Color.Gray,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Fill
-            };
+                btnChangeAddress.Text = "Сохранить адрес";
+                btnCancelAddress.Visible = true;
+            }
+            else
+            {
+                btnChangeAddress.Text = "Изменить адрес";
+                btnCancelAddress.Visible = false;
+            }
+        }
 
-            card.Controls.Add(lblLabel);
-            card.Controls.Add(lblValue);
+        private void BtnEdit_Click(object sender, EventArgs e)
+        {
+            if (!_isEditMode)
+            {
+                SetEditMode(true);
+            }
+            else
+            {
+                bool success = DatabaseHelper.UpdateUserData(
+                    _currentUser.Id,
+                    txtLastName.Text,
+                    txtFirstName.Text,
+                    txtMiddleName.Text,
+                    txtEmail.Text,
+                    txtPhone.Text,
+                    txtAddress.Text
+                );
 
-            return card;
+                if (success)
+                {
+                    _currentUser.LastName = txtLastName.Text;
+                    _currentUser.FirstName = txtFirstName.Text;
+                    _currentUser.MiddleName = txtMiddleName.Text;
+                    _currentUser.Email = txtEmail.Text;
+                    _currentUser.Phone = txtPhone.Text;
+                    _currentUser.Address = txtAddress.Text;
+
+                    MessageBox.Show("Данные обновлены", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _originalLastName = txtLastName.Text;
+                    _originalFirstName = txtFirstName.Text;
+                    _originalMiddleName = txtMiddleName.Text;
+                    _originalEmail = txtEmail.Text;
+                    _originalPhone = txtPhone.Text;
+                    _originalAddress = txtAddress.Text;
+
+                    SetEditMode(false);
+                    SetAddressEditMode(false);
+                }
+                else
+                {
+                    MessageBox.Show("Ошибка при сохранении", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void BtnCancelEdit_Click(object sender, EventArgs e)
+        {
+            txtLastName.Text = _originalLastName;
+            txtFirstName.Text = _originalFirstName;
+            txtMiddleName.Text = _originalMiddleName;
+            txtEmail.Text = _originalEmail;
+            txtPhone.Text = _originalPhone;
+            txtAddress.Text = _originalAddress;
+
+            SetEditMode(false);
+            SetAddressEditMode(false);
+        }
+
+        private void BtnChangeAddress_Click(object sender, EventArgs e)
+        {
+            if (!_isAddressEditMode)
+            {
+                SetAddressEditMode(true);
+            }
+            else
+            {
+                bool success = DatabaseHelper.UpdateUserData(
+                    _currentUser.Id,
+                    _currentUser.LastName,
+                    _currentUser.FirstName,
+                    _currentUser.MiddleName,
+                    _currentUser.Email,
+                    _currentUser.Phone,
+                    txtAddress.Text
+                );
+
+                if (success)
+                {
+                    _currentUser.Address = txtAddress.Text;
+
+                    MessageBox.Show("Адрес обновлён", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _originalAddress = txtAddress.Text;
+                    SetAddressEditMode(false);
+                }
+                else
+                {
+                    MessageBox.Show("Ошибка при сохранении адреса", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void BtnCancelAddress_Click(object sender, EventArgs e)
+        {
+            txtAddress.Text = _originalAddress;
+            SetAddressEditMode(false);
+        }
+
+        private void BtnLogout_Click(object sender, EventArgs e)
+        {
+            var result = MessageBox.Show("Вы действительно хотите выйти?", "Выход",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes)
+            {
+                LogoutRequested?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 }
